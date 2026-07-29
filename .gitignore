@@ -3,3 +3,8 @@ dist
 *.tsbuildinfo
 .DS_Store
 .test-build
+
+# Local secrets — never commit
+.env
+.env.*
+!.env.example
