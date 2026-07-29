@@ -1,7 +1,7 @@
 {
   "name": "@workser/app",
   "version": "0.1.0",
-  "description": "One client for everything a Workser project owns \u2014 database, business data, connected apps, storage, auth and workflow automation. Zero-config inside a Workser project.",
+  "description": "One client for everything a Workser project owns — database, business data, connected apps, storage, auth and workflow automation. Zero-config inside a Workser project.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -44,10 +44,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/workser-web/workser-sdk.git"
+    "url": "git+https://github.com/workser-ai/workser-app-sdk.git"
   },
   "homepage": "https://docs.workser.ai/developers/sdk-quickstart",
   "bugs": {
-    "url": "https://github.com/workser-web/workser-sdk/issues"
+    "url": "https://github.com/workser-ai/workser-app-sdk/issues"
   }
 }
