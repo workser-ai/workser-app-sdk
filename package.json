@@ -1,0 +1,53 @@
+{
+  "name": "@workser/app",
+  "version": "0.1.0",
+  "description": "One client for everything a Workser project owns \u2014 database, business data, connected apps, storage, auth and workflow automation. Zero-config inside a Workser project.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc -p tsconfig.json --outDir .test-build && node --test .test-build/test/*.test.js",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "keywords": [
+    "workser",
+    "ai-agent",
+    "sdk",
+    "composio",
+    "workflow",
+    "postgres"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/workser-web/workser-sdk.git"
+  },
+  "homepage": "https://docs.workser.ai/developers/sdk-quickstart",
+  "bugs": {
+    "url": "https://github.com/workser-web/workser-sdk/issues"
+  }
+}
