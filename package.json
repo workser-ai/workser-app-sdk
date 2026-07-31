@@ -1,6 +1,6 @@
 {
   "name": "@workser/app",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One client for everything a Workser project owns — database, business data, connected apps, storage, auth and workflow automation. Zero-config inside a Workser project.",
   "license": "MIT",
   "type": "module",
