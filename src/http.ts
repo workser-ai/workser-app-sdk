@@ -21,6 +21,15 @@ export interface RequestOptions {
   baseUrl?: string;
   /** Override the bearer token — used by the workflow service. */
   token?: string;
+  /**
+   * Per-request headers, merged over the client's.
+   *
+   * Needed because not every Workser service authenticates the same way: the
+   * workflow service reads `x-api-key`, not `Authorization`. Without this the
+   * workflow namespace silently sent no credential at all and every trigger
+   * came back 401.
+   */
+  headers?: Record<string, string>;
   timeoutMs?: number;
   /**
    * Replay protection for writes. Sent as `Idempotency-Key`. Supplied
@@ -65,6 +74,7 @@ export class HttpClient {
       accept: 'application/json',
       'user-agent': `workser-sdk/${SDK_VERSION}`,
       ...this.config.headers,
+      ...opts.headers,
     };
 
     const auth = opts.auth ?? 'bearer';

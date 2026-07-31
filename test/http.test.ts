@@ -163,7 +163,7 @@ test('workflow calls fail clearly when the project has no workflow service', asy
   const s = stub([json({})]);
   const client = new Workser({ ...BASE, fetch: s.fetchImpl });
   await assert.rejects(
-    () => client.workflows.list(),
+    () => client.workflows.trigger('wf_1'),
     (err: unknown) =>
       err instanceof WorkserError &&
       err.code === 'config' &&
@@ -171,17 +171,62 @@ test('workflow calls fail clearly when the project has no workflow service', asy
   );
 });
 
-test('workflow calls use the workflow service base and its own key', async () => {
-  const s = stub([json({ data: [{ id: 'wf_1' }] })]);
+test('triggering hits /workflow-execution and authenticates with x-api-key', async () => {
+  // The workflow service's ApiKeyGuard reads `x-api-key`. Sending a bearer
+  // token instead fails closed with a 401 that reads like a bad key, which is
+  // exactly the wrong thing to debug.
+  const s = stub([json({ data: { ok: true } })]);
   const client = new Workser({
     ...BASE,
     fetch: s.fetchImpl,
     workflowBaseUrl: 'https://workflow.workser.ai',
     workflowApiKey: 'wsr_workflow_key_123',
   });
-  await client.workflows.list();
-  assert.match(s.calls[0]?.url ?? '', /^https:\/\/workflow\.workser\.ai\/workflows/);
-  assert.equal(s.calls[0]?.headers.authorization, 'Bearer wsr_workflow_key_123');
+
+  // A bare `{ data: … }` reply is unwrapped by the transport, so the caller
+  // receives the response node's data directly.
+  const out = await client.workflows.trigger('wf_1', { orderId: 'o_9' });
+  assert.deepEqual(out, { ok: true });
+
+  const call = s.calls[0]!;
+  assert.match(call.url, /^https:\/\/workflow\.workser\.ai\/workflow-execution\/wf_1/);
+  assert.equal(call.method, 'POST');
+  assert.equal(call.headers['x-api-key'], 'wsr_workflow_key_123');
+  assert.equal(call.headers['x-project-id'], 'p_1');
+  assert.equal(call.headers.authorization, undefined, 'must NOT send a bearer token');
+  assert.deepEqual(JSON.parse(call.body ?? '{}'), { orderId: 'o_9' });
+});
+
+test('waits for the response node by default, and can be told not to', async () => {
+  const s = stub([json({ data: 1 }), json({ executionId: 'e_1' })]);
+  const client = new Workser({
+    ...BASE,
+    fetch: s.fetchImpl,
+    workflowBaseUrl: 'https://workflow.workser.ai',
+    workflowApiKey: 'k',
+  });
+
+  await client.workflows.trigger('wf_1');
+  assert.match(s.calls[0]!.url, /wait=true/, 'default must match the service default');
+
+  await client.workflows.triggerAndForget('wf_1');
+  assert.match(s.calls[1]!.url, /wait=false/);
+});
+
+test('a GET-shaped workflow call sends inputs as query, not a body', async () => {
+  const s = stub([json({ data: [] })]);
+  const client = new Workser({
+    ...BASE,
+    fetch: s.fetchImpl,
+    workflowBaseUrl: 'https://workflow.workser.ai',
+    workflowApiKey: 'k',
+  });
+  await client.workflows.call('GET', 'wf_1', { status: 'open' });
+
+  const call = s.calls[0]!;
+  assert.equal(call.method, 'GET');
+  assert.equal(call.body, undefined);
+  assert.match(call.url, /status=open/);
 });
 
 test('a 204 resolves to undefined rather than throwing on empty JSON', async () => {

@@ -26,6 +26,7 @@ import { HttpClient, SDK_VERSION } from './http.js';
 import { Business } from './resources/business.js';
 import { Connect } from './resources/connect.js';
 import { Storage } from './resources/storage.js';
+import { Neon } from './resources/neon.js';
 import { Auth } from './resources/auth.js';
 import { Db } from './resources/db.js';
 import { Workflows } from './resources/workflow.js';
@@ -38,6 +39,14 @@ export class Workser {
   readonly connect: Connect;
   /** Project file storage. */
   readonly storage: Storage;
+  /**
+   * The project's own Neon backend (object storage + functions).
+   *
+   * Additive infrastructure, not a replacement for `storage`. Call
+   * `neon.status()` first — it is only available on dedicated tenancy in a
+   * supported region.
+   */
+  readonly neon: Neon;
   /** Project end-user authentication. */
   readonly auth: Auth;
   /** The project's Postgres database. */
@@ -55,6 +64,7 @@ export class Workser {
     this.business = new Business(this.http, resolved.projectId);
     this.connect = new Connect(this.http, resolved.projectId);
     this.storage = new Storage(this.http, resolved.projectId);
+    this.neon = new Neon(this.http, resolved.projectId);
     this.auth = new Auth(this.http, resolved.projectId);
     this.db = new Db(this.http, resolved.projectId);
     this.workflows = new Workflows(
@@ -119,6 +129,12 @@ export { redact, redactValue } from './redact.js';
 export { BusinessResource, type ListParams } from './resources/business.js';
 export type { Toolkit, Connection, ToolSchema } from './resources/connect.js';
 export type { StoredFile } from './resources/storage.js';
+export type {
+  NeonBackendStatus,
+  NeonBucket,
+  NeonBucketObject,
+  NeonFunction,
+} from './resources/neon.js';
 export type { AuthUser } from './resources/auth.js';
 export type { TableInfo } from './resources/db.js';
-export type { Workflow, Execution } from './resources/workflow.js';
+export type { TriggerOptions, TriggerResult } from './resources/workflow.js';
