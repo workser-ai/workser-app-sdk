@@ -47,6 +47,42 @@ The point is that these are **the same records** the Workser dashboard and your
 AI employees read and write. An app built on Workser is not integrating with a
 separate system — it is reading its own business.
 
+## Connected apps
+
+The connection belongs to the **project**, not to your app. The owner connects
+Gmail once in Workser; every app in the project can send mail. No OAuth flow to
+implement, no tokens to store, no refresh logic.
+
+The one thing worth handling is that the owner may not have connected the
+account yet — and finding that out *after* your user pressed the button is the
+bad version:
+
+```ts
+// Ask first, so you can hide or disable the feature.
+if (await workser.connect.isConnected('gmail')) {
+  showEmailReceiptButton();
+}
+
+// Or build the whole menu from one call.
+const accounts = await workser.connect.connected();   // ['gmail', 'googlesheets']
+
+// Or just act, and get a sentence you can show a person if it is missing.
+await workser.connect.safeRun('GMAIL_SEND_EMAIL', {
+  to: 'owner@shop.com',
+  subject: 'Daily summary',
+  body: '12 orders today.',
+}, { idempotencyKey: `summary-${today}` });
+```
+
+`safeRun` derives the account from the action slug (`GMAIL_SEND_EMAIL` → Gmail),
+checks it, and only then acts. When it is missing it throws a `WorkserError`
+whose message names the account and says the **project owner** connects it in
+Workser — because the person reading your error page cannot.
+
+`run()` is still there when you have already checked, or when you want the raw
+upstream error. Both take `idempotencyKey`, which is how an automatic retry
+stops sending the same email twice.
+
 ## Security
 
 This SDK is used by AI agents, so anything it returns can end up in a model's

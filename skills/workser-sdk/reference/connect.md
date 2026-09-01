@@ -18,16 +18,39 @@ await workser.connect.run('GMAIL_SEND_EMAIL',
 );
 ```
 
+## Ask before you act
+
+The commonest failure is not a bug in your code: the owner has not connected the
+account yet, and you find out *after* the user pressed the button. Three ways to
+find out first, cheapest last:
+
+```ts
+await workser.connect.isConnected('gmail');   // boolean; INITIATED does not count
+await workser.connect.connected();            // ['gmail','googlesheets'] — one call
+await workser.connect.requireConnection('gmail');  // throws a sentence you can show
+await workser.connect.safeRun('GMAIL_SEND_EMAIL', args, { idempotencyKey });
+```
+
+**`safeRun` is the one to reach for.** It derives the account from the action slug
+(`GMAIL_SEND_EMAIL` → `gmail`), checks it, and only then acts. When the account is
+missing it throws a `WorkserError` (`code: 'forbidden'`) whose message names the
+account and says the **project owner** connects it in Workser — which matters,
+because the person reading your error page cannot do it themselves.
+
+A slug with no underscore has no derivable toolkit, so `safeRun` just runs. Pass
+`{ toolkit }` explicitly for those.
+
 ## The order to do things in
 
-1. **`connections()` first.** Check what the project already has before offering a
-   feature or asking the user for anything.
+1. **`isConnected()` / `connected()` first.** Check what the project already has
+   before offering a feature or asking the user for anything.
 2. **Not connected?** `connect(toolkit)` returns a `redirect_url` the **user** must
    open — OAuth cannot be completed on their behalf, by design. Surface the link,
    wait, then continue.
 3. **`tools(toolkitSlug)` before `run`.** The schema is what lets you construct valid
    arguments instead of guessing field names that will silently fail.
-4. **`run(toolSlug, args, { idempotencyKey })`.**
+4. **`safeRun(toolSlug, args, { idempotencyKey })`**, or `run()` when you have
+   already checked and want the raw upstream error.
 
 ## `run()` is a real side effect
 
