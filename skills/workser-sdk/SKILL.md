@@ -39,6 +39,7 @@ file — you are paying for every line you load.
 | Look up the project's end users | `workser.auth` | `reference/auth.md` |
 | Send mail, post to Slack, write a Sheet, call Stripe | `workser.connect` | `reference/connect.md` |
 | Hand work off so it outlives the request | `workser.workflows` | `reference/workflows.md` |
+| Run an AI agent for the user and stream what it does | `workser.agents` | `reference/agents.md` |
 | Use the project's own Neon buckets or functions | `workser.neon` | `reference/neon.md` |
 | Handle a failure, or run outside a Workser environment | `WorkserError`, `createClient` | `reference/errors-and-config.md` |
 

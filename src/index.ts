@@ -30,6 +30,7 @@ import { Neon } from './resources/neon.js';
 import { Auth } from './resources/auth.js';
 import { Db } from './resources/db.js';
 import { Workflows } from './resources/workflow.js';
+import { Agents } from './resources/agents.js';
 
 export class Workser {
   readonly projectId: string;
@@ -53,6 +54,11 @@ export class Workser {
   readonly db: Db;
   /** Workflow automation — hand work off so it outlives the request. */
   readonly workflows: Workflows;
+  /**
+   * Agent Cloud — agents that run on Workser's infrastructure and can be
+   * called from this app, with a resumable event stream for watching them.
+   */
+  readonly agents: Agents;
 
   private readonly http: HttpClient;
 
@@ -73,6 +79,7 @@ export class Workser {
       resolved.workflowBaseUrl,
       resolved.workflowApiKey,
     );
+    this.agents = new Agents(this.http, resolved.projectId);
   }
 
   /**
@@ -138,3 +145,12 @@ export type {
 export type { AuthUser } from './resources/auth.js';
 export type { TableInfo } from './resources/db.js';
 export type { TriggerOptions, TriggerResult } from './resources/workflow.js';
+export type {
+  CloudAgent,
+  AgentRun,
+  AgentRunEvent,
+  AgentRunStatus,
+  RunOptions,
+  StreamRunOptions,
+} from './resources/agents.js';
+export type { SseEvent, StreamOptions } from './streaming.js';

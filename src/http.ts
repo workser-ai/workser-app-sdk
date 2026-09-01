@@ -8,6 +8,7 @@
 import type { ResolvedConfig } from './config.js';
 import { WorkserError, classifyStatus, type WorkserRequestInfo } from './errors.js';
 import { redact } from './redact.js';
+import { openSseStream, type SseEvent, type StreamOptions } from './streaming.js';
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -61,8 +62,18 @@ function sleep(ms: number): Promise<void> {
 export class HttpClient {
   constructor(private readonly config: ResolvedConfig) {}
 
-  async request<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
-    const method = opts.method ?? (opts.body !== undefined ? 'POST' : 'GET');
+  /**
+   * URL + headers, built exactly once for both calling styles.
+   *
+   * Extracted so that `stream()` cannot drift from `request()` on auth. The
+   * two differ in how they read a body, and they must never differ in how they
+   * present a credential — an SSE endpoint that quietly authenticated a
+   * different way would be a hole nobody would think to look for.
+   */
+  private prepare(
+    path: string,
+    opts: RequestOptions,
+  ): { url: URL; headers: Record<string, string> } {
     const base = opts.baseUrl ?? this.config.baseUrl;
     const url = new URL(base + path);
 
@@ -103,6 +114,35 @@ export class HttpClient {
     if (this.config.organizationId) {
       headers['x-organization-id'] = this.config.organizationId;
     }
+
+    return { url, headers };
+  }
+
+  /**
+   * A long-lived server-sent-event stream.
+   *
+   * Same auth and same base URL as `request`, deliberately NOT the same
+   * timeout or retry policy — see `streaming.ts` for why a stream that may
+   * legitimately run for two hours can share neither with a REST call.
+   */
+  stream(
+    path: string,
+    opts: StreamOptions & RequestOptions = {},
+  ): AsyncGenerator<SseEvent> {
+    const { url, headers } = this.prepare(path, opts);
+    return openSseStream({
+      url,
+      headers,
+      fetch: this.config.fetch,
+      idleTimeoutMs: opts.idleTimeoutMs ?? 60_000,
+      signal: opts.signal,
+      request: { method: 'GET', path },
+    });
+  }
+
+  async request<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+    const method = opts.method ?? (opts.body !== undefined ? 'POST' : 'GET');
+    const { url, headers } = this.prepare(path, opts);
 
     const isWrite = method !== 'GET';
     if (isWrite && opts.idempotencyKey) {

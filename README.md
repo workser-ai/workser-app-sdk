@@ -42,6 +42,7 @@ const workser = createClient({ projectId: 'proj_…', apiKey: process.env.WORKSE
 | `workser.storage` | Project file storage |
 | `workser.auth` | The project's end users |
 | `workser.workflows` | Automations that outlive the request |
+| `workser.agents` | Agents that run on Workser's infrastructure, with a resumable event stream |
 
 The point is that these are **the same records** the Workser dashboard and your
 AI employees read and write. An app built on Workser is not integrating with a
