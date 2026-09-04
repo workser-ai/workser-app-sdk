@@ -22,6 +22,12 @@ export type WorkserErrorCode =
   | 'server_error' // 5xx
   | 'timeout' // the request exceeded `timeoutMs`
   | 'network' // DNS/TLS/socket — the request never got a response
+  // 402 — the organisation's credit ledger is empty. Named separately from
+  // `forbidden` because it is the one refusal in this list the app's OWNER can
+  // fix, in a minute, by topping up. Telling them "forbidden" sends them
+  // looking for a permissions problem that does not exist.
+  | 'insufficient_credit'
+  | 'http' // a status this SDK does not classify further
   | 'unsupported'; // the runtime cannot do this safely (see BrowserSecretError)
 
 export interface WorkserRequestInfo {

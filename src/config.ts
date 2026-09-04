@@ -30,6 +30,26 @@ export interface WorkserConfig {
    * SDK holds both so callers never have to think about which is which.
    */
   cloudApiKey?: string;
+  /**
+   * Where one-shot model calls go — `workser.ai.*`. Defaults to
+   * `WORKSER_AI_GATEWAY_URL`, which Workser injects at provisioning.
+   *
+   * A DIFFERENT SERVICE from `baseUrl`, deliberately. Core API is the
+   * management plane; the AI gateway is a metered proxy in front of the model
+   * routers, with its own per-app credential that can be rotated without
+   * touching anything else the app can reach.
+   */
+  aiGatewayUrl?: string;
+  /** Key for `aiGatewayUrl`. Defaults to `AI_GATEWAY_API_KEY`. */
+  aiGatewayApiKey?: string;
+  /**
+   * This app's own id, so the runs it starts are reported against it.
+   *
+   * Defaults to `WORKSER_WEB_APP_ID`, which Workser injects at provisioning.
+   * Absent outside a Workser-deployed app, and absent is a real answer: a run
+   * with no app behind it is reported as exactly that rather than guessed at.
+   */
+  webAppId?: string;
   /** Per-request timeout. Default 30s. */
   timeoutMs?: number;
   /** Retries for retryable failures (5xx, 429, network). Default 2. */
@@ -53,6 +73,9 @@ export interface ResolvedConfig {
   workflowBaseUrl?: string;
   workflowApiKey?: string;
   cloudApiKey?: string;
+  aiGatewayUrl?: string;
+  aiGatewayApiKey?: string;
+  webAppId?: string;
   timeoutMs: number;
   maxRetries: number;
   fetch: typeof globalThis.fetch;
@@ -153,6 +176,12 @@ export function resolveConfig(config: WorkserConfig = {}): ResolvedConfig {
     ),
     workflowApiKey: config.workflowApiKey ?? env('WORKFLOW_API_KEY'),
     cloudApiKey: config.cloudApiKey ?? env('WORKSER_CORE_API_SERVICE_API_KEY'),
+    aiGatewayUrl: (config.aiGatewayUrl ?? env('WORKSER_AI_GATEWAY_URL'))?.replace(
+      /\/+$/,
+      '',
+    ),
+    aiGatewayApiKey: config.aiGatewayApiKey ?? env('AI_GATEWAY_API_KEY'),
+    webAppId: config.webAppId ?? env('WORKSER_WEB_APP_ID'),
     timeoutMs,
     maxRetries,
     fetch: doFetch.bind(globalThis),

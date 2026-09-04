@@ -92,6 +92,9 @@ export interface AgentRunEvent {
 }
 
 export interface RunOptions {
+  /** Override which app this run is attributed to. Defaults to the app the
+   *  SDK was constructed in, from `WORKSER_WEB_APP_ID`. */
+  webAppId?: string;
   /**
    * WHO this run is for, when the agent serves your app's end users.
    *
@@ -139,6 +142,19 @@ export class Agents {
   constructor(
     private readonly http: HttpClient,
     private readonly projectId: string,
+    /**
+     * This app's own id, when it has one.
+     *
+     * Sent with every run it starts, so the run's cost is reported against
+     * THIS app rather than only against the project. A gateway key is already
+     * per-app, so one-shot `workser.ai` calls attribute themselves; agent runs
+     * had no equivalent and a project with four apps could see what the
+     * project spent and never which app spent it.
+     *
+     * Undefined outside a Workser-deployed app, and undefined is a real
+     * answer — the run is reported as having no app rather than guessed at.
+     */
+    private readonly webAppId?: string,
   ) {}
 
   /** The agents this project owns. */
@@ -176,6 +192,10 @@ export class Agents {
           reference_user_id: opts.referenceUserId,
           session_id: opts.sessionId,
           reference_project_id: opts.referenceProjectId ?? this.projectId,
+          // Attribution, not authorisation — see `webAppId`. Omitted entirely
+          // when there is none, so the server stores null rather than a
+          // string that looks like an id.
+          web_app_id: opts.webAppId ?? this.webAppId,
         },
         // Starting an agent run spends real money and may send real email, so
         // an automatic transport-level retry after a timeout must NOT be able

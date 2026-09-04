@@ -31,6 +31,14 @@ import { Auth } from './resources/auth.js';
 import { Db } from './resources/db.js';
 import { Workflows } from './resources/workflow.js';
 import { Agents } from './resources/agents.js';
+export { Ai } from './resources/ai.js';
+export type {
+  AiCallOptions,
+  TextResult,
+  ImageResult,
+  EmbedResult,
+} from './resources/ai.js';
+import { Ai } from './resources/ai.js';
 
 export class Workser {
   readonly projectId: string;
@@ -59,6 +67,17 @@ export class Workser {
    * called from this app, with a resumable event stream for watching them.
    */
   readonly agents: Agents;
+  /**
+   * One call, one answer — text, images, speech, video, embeddings, on
+   * Workser's own model credential and the organisation's credit ledger.
+   *
+   * The distinction from `agents` is worth stating once: an agent is a
+   * sandbox, a tool loop and minutes of metered runtime. Most of what an app
+   * needs a model for is one call that takes a second, and paying
+   * agent-shaped money for it was the only option on offer until this
+   * existed.
+   */
+  readonly ai: Ai;
 
   private readonly http: HttpClient;
 
@@ -79,7 +98,12 @@ export class Workser {
       resolved.workflowBaseUrl,
       resolved.workflowApiKey,
     );
-    this.agents = new Agents(this.http, resolved.projectId);
+    this.agents = new Agents(this.http, resolved.projectId, resolved.webAppId);
+    // The AI gateway is a DIFFERENT service with a DIFFERENT credential, so
+    // this takes the resolved config rather than the core-api http client.
+    // One call, one answer — see `resources/ai.ts` for when to use it instead
+    // of `agents`.
+    this.ai = new Ai(resolved);
   }
 
   /**
