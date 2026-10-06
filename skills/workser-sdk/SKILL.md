@@ -35,7 +35,7 @@ file — you are paying for every line you load.
 | --- | --- | --- |
 | Read or write orders, sales, carts, pages, fulfillments | `workser.business` | `reference/business.md` |
 | Run SQL, list tables, get a connection URI for an ORM | `workser.db` | `reference/db.md` |
-| Upload, list or delete files | `workser.storage` | `reference/storage.md` |
+| Store or serve a file — images, uploads, PDFs | `workser.storage` | `reference/storage.md` |
 | Look up the project's end users | `workser.auth` | `reference/auth.md` |
 | Send mail, post to Slack, write a Sheet, call Stripe | `workser.connect` | `reference/connect.md` |
 | Hand work off so it outlives the request | `workser.workflows` | `reference/workflows.md` |
@@ -63,6 +63,13 @@ These apply to every namespace. Don't skip them because you only read one file.
    `WorkserError` with a stable code. See `reference/errors-and-config.md`.
 5. **Never log a raw error object or a config containing a key.** `err.summary()`
    is the redacted form and is the one to log.
+6. **Files go to `workser.storage` — and never to the app's own filesystem.**
+   `workser.storage` is the default; if the owner asked for their own S3 or
+   Cloudinary, build that instead. What is never an option either way is
+   `fs.writeFile` or an upload handler saving next to the code: the host is
+   serverless, so what you wrote is gone at the end of the request, and anything
+   under `public/` is committed and rides in every deploy for ever. Store it,
+   keep the returned key or URL, and serve that.
 
 ## These are the project's real records
 

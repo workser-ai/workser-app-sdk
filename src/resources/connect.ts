@@ -7,6 +7,25 @@
  * implement, no tokens to store, no refresh logic.
  *
  * Requires `composio:read` / `composio:execute` / `composio:manage`.
+ *
+ * ─── TWO SCOPES OF CONNECTION, AND WHY EVERY METHOD TAKES `referenceUserId` ───
+ *
+ * The paragraph above describes the common case: the OWNER connects Gmail once
+ * and the whole project can send mail. There is a second case the API has
+ * always supported and this class could not reach — an app that is itself
+ * multi-tenant, where each of YOUR OWN end-users links THEIR OWN account. A
+ * CRM you built for ten customers does not want to send all their mail from
+ * your inbox.
+ *
+ * The server calls that a REFERENCE_USER-scoped connection and keys it on an id
+ * you choose (your own user id). Passing it changes WHOSE account is acted in;
+ * omitting it means the project's own.
+ *
+ * It was previously reachable only through `workser.request(...)`, which meant
+ * dropping out of the typed surface — and, worse, that the moment a project had
+ * any reference-user connection for a toolkit, a plain `run()` started failing
+ * with `400 REFERENCE_USER_ID_REQUIRED`. The API insists on knowing whose
+ * account you mean, and the SDK had no way to say.
  */
 import type { HttpClient } from '../http.js';
 import { WorkserError } from '../errors.js';
@@ -22,6 +41,28 @@ export interface Connection {
   toolkit?: string;
   status?: string;
   [key: string]: unknown;
+}
+
+/**
+ * WHOSE ACCOUNT this call is about.
+ *
+ * One option, shared by every method that can be asked about either scope, so
+ * "the project's Gmail" and "this customer's Gmail" are the same call with one
+ * field changed rather than two APIs to learn.
+ *
+ * Omitted means the PROJECT's own connection — the common case, and the one
+ * every existing caller already gets, unchanged.
+ */
+export interface ConnectionScope {
+  /**
+   * Your own id for one of your app's end-users.
+   *
+   * Whatever you use in your own database is fine; it is an opaque key to
+   * Workser. What matters is that it is stable — the same string that linked
+   * the account has to be the one that acts in it, or you are asking about
+   * somebody who has connected nothing.
+   */
+  referenceUserId?: string;
 }
 
 export interface ToolSchema {
@@ -59,10 +100,20 @@ export class Connect {
     );
   }
 
-  /** What this project has actually connected — check before offering a feature. */
-  connections(params: { toolkit?: string } = {}): Promise<Connection[]> {
+  /**
+   * What this project has actually connected — check before offering a feature.
+   *
+   * `referenceUserId` asks about ONE of your end-users' own connections
+   * instead of the project's. Different question, different answer: a project
+   * with Gmail connected does not mean this particular customer has linked
+   * theirs.
+   */
+  connections(params: ConnectionScope & { toolkit?: string } = {}): Promise<Connection[]> {
     return this.http.request<Connection[]>(`${this.base()}/connections`, {
-      query: params,
+      query: {
+        toolkit: params.toolkit,
+        reference_user_id: params.referenceUserId,
+      },
     });
   }
 
@@ -70,13 +121,23 @@ export class Connect {
    * Begin connecting a toolkit. Returns a redirect URL the USER must open —
    * OAuth cannot be completed on their behalf, by design.
    */
-  connect(toolkit: string, opts: { redirectUrl?: string } = {}): Promise<{
+  connect(
+    toolkit: string,
+    opts: ConnectionScope & { redirectUrl?: string } = {},
+  ): Promise<{
     redirect_url?: string;
     [key: string]: unknown;
   }> {
     return this.http.request(`${this.base()}/connect`, {
       method: 'POST',
-      body: { toolkit, redirect_url: opts.redirectUrl },
+      body: {
+        toolkit,
+        redirect_url: opts.redirectUrl,
+        // Present ⇒ this OAuth links that end-user's own account. Absent ⇒ the
+        // project's. It is the same flow either way; the id is what decides
+        // whose mailbox comes out the other end.
+        reference_user_id: opts.referenceUserId,
+      },
     });
   }
 
@@ -102,13 +163,13 @@ export class Connect {
   run<T = unknown>(
     toolSlug: string,
     args: Record<string, unknown> = {},
-    opts: { idempotencyKey?: string } = {},
+    opts: ConnectionScope & { idempotencyKey?: string } = {},
   ): Promise<T> {
     return this.http.request<T>(
       `${this.base()}/tools/${encodeURIComponent(toolSlug)}/execute`,
       {
         method: 'POST',
-        body: { arguments: args },
+        body: { arguments: args, reference_user_id: opts.referenceUserId },
         idempotencyKey: opts.idempotencyKey,
       },
     );
@@ -137,8 +198,11 @@ export class Connect {
    * network failure means "not connected" would have you hide a feature the
    * owner has paid for.
    */
-  async isConnected(toolkit: string): Promise<boolean> {
-    const list = await this.connections({ toolkit });
+  async isConnected(toolkit: string, opts: ConnectionScope = {}): Promise<boolean> {
+    const list = await this.connections({
+      toolkit,
+      referenceUserId: opts.referenceUserId,
+    });
     return list.some((c) => isActive(c));
   }
 
@@ -149,8 +213,8 @@ export class Connect {
    * 'googlesheets']` is enough to build a menu, and it costs one request
    * instead of one per feature.
    */
-  async connected(): Promise<string[]> {
-    const list = await this.connections();
+  async connected(opts: ConnectionScope = {}): Promise<string[]> {
+    const list = await this.connections({ referenceUserId: opts.referenceUserId });
     const slugs = new Set<string>();
     for (const c of list) {
       if (!isActive(c)) continue;
@@ -168,14 +232,30 @@ export class Connect {
    * does that in Workser, in front of an OAuth screen. An error that says
    * `403 composio` sends them to you; this one sends them to the right place.
    */
-  async requireConnection(toolkit: string): Promise<void> {
-    if (await this.isConnected(toolkit)) return;
+  async requireConnection(toolkit: string, opts: ConnectionScope = {}): Promise<void> {
+    if (await this.isConnected(toolkit, opts)) return;
+    /**
+     * WHO HAS TO GO AND FIX IT is a different person in the two scopes, and
+     * this message's whole job is to name them.
+     *
+     * For a project connection it is the owner, in Workser. For a
+     * reference-user connection it is the END USER reading the page — they
+     * have to complete the OAuth themselves, and telling them to contact the
+     * project owner sends them somewhere that cannot help. Same failure, two
+     * different next steps.
+     */
     throw new WorkserError(
-      `This needs a connected ${prettyToolkit(toolkit)} account, and this ` +
-        `project does not have one yet. The project owner can connect it in ` +
-        `Workser under Connections — it is not something this app can do on ` +
-        `their behalf.`,
-      { code: 'forbidden', details: { toolkit } },
+      opts.referenceUserId
+        ? `This needs a connected ${prettyToolkit(toolkit)} account. Link ` +
+            `yours to continue — nobody can do it on your behalf.`
+        : `This needs a connected ${prettyToolkit(toolkit)} account, and this ` +
+            `project does not have one yet. The project owner can connect it in ` +
+            `Workser under Connections — it is not something this app can do on ` +
+            `their behalf.`,
+      {
+        code: 'forbidden',
+        details: { toolkit, referenceUserId: opts.referenceUserId },
+      },
     );
   }
 
@@ -195,11 +275,23 @@ export class Connect {
   async safeRun<T = unknown>(
     toolSlug: string,
     args: Record<string, unknown> = {},
-    opts: { idempotencyKey?: string; toolkit?: string } = {},
+    opts: ConnectionScope & { idempotencyKey?: string; toolkit?: string } = {},
   ): Promise<T> {
     const toolkit = opts.toolkit ?? toolkitOf(toolSlug);
-    if (toolkit) await this.requireConnection(toolkit);
-    return this.run<T>(toolSlug, args, { idempotencyKey: opts.idempotencyKey });
+    /**
+     * THE CHECK AND THE RUN MUST ASK ABOUT THE SAME ACCOUNT.
+     *
+     * This is the reason the scope is threaded all the way down rather than
+     * only onto `run()`. With it on the run alone, `safeRun` would confirm the
+     * PROJECT has Gmail and then send mail as one of your customers — a guard
+     * that passes on the strength of somebody else's connection is worse than
+     * no guard, because it reads as having been checked.
+     */
+    if (toolkit) await this.requireConnection(toolkit, opts);
+    return this.run<T>(toolSlug, args, {
+      idempotencyKey: opts.idempotencyKey,
+      referenceUserId: opts.referenceUserId,
+    });
   }
 }
 

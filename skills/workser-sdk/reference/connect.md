@@ -66,4 +66,39 @@ consequences:
 `disconnect(connectionId)` removes a connection for the **whole project**, not just
 this app. Don't call it to clean up after yourself.
 
+## When your OWN users bring their own accounts
+
+Everything above is the project's connection: the owner links Gmail once and the
+whole project sends mail from it. That is right for a back-office job and wrong
+for a multi-tenant app — a CRM you built for ten customers should not send all
+their mail from your inbox.
+
+Pass `referenceUserId` — your own id for the end user — and the call is about
+*their* account instead:
+
+```ts
+await workser.connect.isConnected('gmail', { referenceUserId: user.id });
+await workser.connect.connect('gmail', { referenceUserId: user.id, redirectUrl });
+await workser.connect.safeRun('GMAIL_SEND_EMAIL', args, {
+  referenceUserId: user.id,
+  idempotencyKey: order.id,
+});
+```
+
+Three things to know:
+
+- **Pass it everywhere or nowhere for a given call.** `safeRun` checks and acts
+  in the same account, so passing it once is enough there — but a bare
+  `isConnected('gmail')` followed by a scoped `run()` is a guard that passed on
+  somebody else's connection.
+- **The error changes with it.** `requireConnection` tells the *end user* to link
+  their own account when scoped, and names the *project owner* when it is not —
+  the two failures need different next steps from different people.
+- **The server insists.** Once a project has any reference-user connection for a
+  toolkit, an unscoped `run()` on it fails with `400 REFERENCE_USER_ID_REQUIRED`.
+  The API will not guess whose account you meant.
+
+Use a stable id — whatever your own database uses. The string that linked the
+account has to be the string that acts in it.
+
 Requires `composio:read` / `composio:execute` / `composio:manage`.

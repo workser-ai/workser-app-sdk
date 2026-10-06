@@ -10,6 +10,26 @@ await workser.storage.stats();
 await workser.storage.remove(key);
 ```
 
+## Where a file may go — and where it may not
+
+`workser.storage` is the project's default file store. An owner who asked for
+their own S3 or Cloudinary gets that instead; that choice is theirs, not yours to
+make quietly.
+
+**The app's own filesystem is not one of the choices.** Not `public/`, not
+`assets/`, not `fs.writeFile` anywhere under the app, whichever provider is in
+use. Two different things break, and the first one is silent:
+
+- **The host is serverless.** A file written during a request is gone when the
+  request ends — it works once on your machine and never in production, which is
+  the worst shape a bug can have.
+- **Anything under `public/` is committed.** Publishing bundles the whole app
+  folder, so user uploads and generated art enter the repository's history, ship
+  in every deploy against a 25MB cap, and cannot be changed without a redeploy.
+
+The owner's Files screen lists this bucket. A file that is not in it is one they
+cannot find, replace or delete.
+
 ## Uploading: pick the right one
 
 **Anything sizeable — a presigned URL.** The client PUTs straight to storage, so a

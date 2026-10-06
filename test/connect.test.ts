@@ -152,3 +152,75 @@ test('safeRun with an unparseable slug still runs, rather than refusing', async 
   assert.equal(calls.length, 1);
   assert.match(calls[0]!.url, /\/tools\/CUSTOMACTION\/execute$/);
 });
+
+/* ───────────────────── an app whose users bring their own accounts ────────── */
+
+test('a reference user is asked about, connected and acted in as that user', () => {
+  // A multi-tenant app: each of YOUR customers links THEIR own Gmail. The id
+  // is what decides whose mailbox comes out the other end, and it was
+  // previously unreachable without dropping to `workser.request`.
+  const { workser, calls } = client([[]]);
+  return workser.connect
+    .connections({ toolkit: 'gmail', referenceUserId: 'user_42' })
+    .then(() => {
+      assert.match(calls[0]!.url, /reference_user_id=user_42/);
+      assert.match(calls[0]!.url, /toolkit=gmail/);
+    });
+});
+
+test('run sends the reference user, and omits it entirely when there is none', async () => {
+  const scoped = client([{ ok: true }]);
+  await scoped.workser.connect.run('GMAIL_SEND_EMAIL', { to: 'a@b.com' }, {
+    referenceUserId: 'user_42',
+  });
+  assert.deepEqual(JSON.parse(scoped.calls[0]!.body!), {
+    arguments: { to: 'a@b.com' },
+    reference_user_id: 'user_42',
+  });
+
+  // The project-scoped call must be byte-identical to what it always sent —
+  // a `reference_user_id: null` in the body would be a new field on every
+  // existing caller's request.
+  const project = client([{ ok: true }]);
+  await project.workser.connect.run('GMAIL_SEND_EMAIL', { to: 'a@b.com' });
+  assert.deepEqual(JSON.parse(project.calls[0]!.body!), {
+    arguments: { to: 'a@b.com' },
+  });
+});
+
+test('safeRun checks the SAME account it is about to act in', async () => {
+  // The reason the scope is threaded through the guard and not just the run:
+  // checking the project's Gmail and then sending as a customer is a guard
+  // that passes on somebody else's connection.
+  const { workser, calls } = client([[{ id: 'c1', toolkit: 'gmail', status: 'ACTIVE' }]]);
+  await workser.connect.safeRun('GMAIL_SEND_EMAIL', {}, { referenceUserId: 'user_42' });
+  assert.match(calls[0]!.url, /connections\?/);
+  assert.match(calls[0]!.url, /reference_user_id=user_42/);
+  assert.deepEqual(JSON.parse(calls[1]!.body!), {
+    arguments: {},
+    reference_user_id: 'user_42',
+  });
+});
+
+test('the missing-connection message names whoever can actually fix it', async () => {
+  // Two scopes, two different next steps. Telling an end user to contact the
+  // project owner sends them somewhere that cannot help them.
+  const asUser = client([[]]);
+  await assert.rejects(
+    asUser.workser.connect.requireConnection('gmail', { referenceUserId: 'user_42' }),
+    (err: WorkserError) => {
+      assert.match(err.message, /Link yours/);
+      assert.equal((err.details as Record<string, unknown>).referenceUserId, 'user_42');
+      return true;
+    },
+  );
+
+  const asProject = client([[]]);
+  await assert.rejects(
+    asProject.workser.connect.requireConnection('gmail'),
+    (err: WorkserError) => {
+      assert.match(err.message, /project owner can connect it/);
+      return true;
+    },
+  );
+});
