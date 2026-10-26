@@ -26,7 +26,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.json --outDir .test-build && node --test .test-build/test/*.test.js",
-    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build",
+    "release": "npm version patch && npm publish"
   },
   "keywords": [
     "workser",
