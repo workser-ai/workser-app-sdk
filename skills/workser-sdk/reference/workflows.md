@@ -19,7 +19,8 @@ await workser.workflows.call('GET', 'wf_123', { since });
 
 The workflow service has two guards:
 
-- `/workflow-execution/*` — reads `x-api-key`. This is what `WORKFLOW_API_KEY` opens,
+- `/workflow-execution/*` — accepts the key as `Authorization: Bearer`, `x-api-key`
+  or `?api_key=` (the SDK sends `x-api-key`). This is what `WORKFLOW_API_KEY` opens,
   and it is how an app **runs** a workflow.
 - `/workflow/*` and `/executions/*` — needs a user JWT or the platform-wide key. A
   per-project workflow key is neither, so **listing or inspecting workflows 401s from
@@ -52,8 +53,15 @@ the product. That's the "it worked but nothing showed up" bug.
 
 ## Notes that matter
 
-- **`wait: true` is the default.** Use `triggerAndForget` for anything slow — but
-  then the result has to reach you via the webhook above.
+- **`wait: true` is the default.** It holds the request open, so on a serverless
+  host (Vercel) a slow workflow can hit the function's time limit or the SDK's 30 s
+  request timeout while the workflow keeps running. Use `triggerAndForget` for
+  anything slow — but then the result has to reach you via the webhook above.
+- **One connected-app action is not a workflow.** Send an email, add a Sheets row,
+  post to Slack: call `workser.connect.safeRun(...)` from your server code (see
+  `reference/connect.md`). Use a workflow for work that must outlive the request,
+  multi-step orchestration with conditions or loops, inbound triggers, schedules,
+  approvals and AI-agent steps.
 - **Always pass `idempotencyKey`.** The SDK retries, so a timeout can start the
   workflow twice.
 - **The return shape varies.** A bare `{ data: … }` reply is unwrapped, so you get

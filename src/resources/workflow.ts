@@ -9,8 +9,10 @@
  *
  * The workflow service has two guards, and the difference decides this API:
  *
- *   • `/workflow-execution/*` — `ApiKeyGuard`, reads `x-api-key`. This is what
- *     `WORKFLOW_API_KEY` opens, and it is how an app RUNS a workflow.
+ *   • `/workflow-execution/*` — `ApiKeyGuard`, which accepts the key as
+ *     `Authorization: Bearer`, `x-api-key` or `?api_key=`. This is what
+ *     `WORKFLOW_API_KEY` opens, and it is how an app RUNS a workflow. The SDK
+ *     sends `x-api-key`; any of the three works against the same guard.
  *   • `/workflow/*` and `/executions/*` — `AuthGuard`, which accepts a Supabase
  *     JWT or the PLATFORM-wide key. A per-project workflow key is neither, so
  *     listing and inspecting workflows 401s from an app.
@@ -37,6 +39,14 @@ export interface TriggerOptions {
    *
    * `false` is right for anything slow — but the result then has to reach your
    * app some other way, which means a webhook. See the module note.
+   *
+   * SERVERLESS RISK: the default (`true`) holds your request open until the
+   * workflow finishes. On Vercel a function that outlives its `maxDuration`
+   * is killed, and the SDK's own per-request timeout (default 30 s) aborts the
+   * call first — the workflow keeps running but your code sees a timeout. The
+   * default is left as `true` because existing callers read the output from
+   * the return value; for anything that can take more than a few seconds, pass
+   * `wait: false` (or use `triggerAndForget`) and receive the result by webhook.
    */
   wait?: boolean;
   /**
@@ -88,9 +98,10 @@ export class Workflows {
     }
     return {
       baseUrl: this.baseUrl,
-      // The workflow service authenticates with `x-api-key`, NOT a bearer
-      // token — its ApiKeyGuard reads that header specifically. Sending
-      // Authorization instead fails closed with a 401 that looks like a bad key.
+      // The workflow service's ApiKeyGuard accepts Bearer, `x-api-key` and
+      // `?api_key=`. We send `x-api-key` and keep `auth: 'none'` so the
+      // transport does not ALSO attach the Core API business key as a bearer
+      // token, which the workflow service would read as the wrong credential.
       auth: 'none' as const,
       headers: {
         'x-api-key': this.token,

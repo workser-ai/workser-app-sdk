@@ -101,4 +101,44 @@ Three things to know:
 Use a stable id — whatever your own database uses. The string that linked the
 account has to be the string that acts in it.
 
+## Moving a one-action workflow to code
+
+A workflow that is only `webhook trigger -> ONE Composio node -> response` is a
+function call with extra hops. A Composio node stores two things you need:
+`toolName` (the action slug, e.g. `GMAIL_SEND_EMAIL`) and `arguments` (the
+payload, with `{{...}}` placeholders filled from the trigger body). Both map
+straight onto `safeRun(slug, args)` — the same project connection, so nothing is
+re-connected.
+
+Before (the app calls the workflow; the node holds `toolName: GMAIL_SEND_EMAIL`,
+`arguments: { to: "{{body.to}}", subject: "{{body.subject}}", body: "{{body.text}}" }`):
+
+```ts
+await workser.workflows.trigger('0b6f...-workflow-uuid', {
+  to: order.email,
+  subject: `Order ${order.id}`,
+  text: 'Thanks for your order.',
+});
+```
+
+After (server-side code, no workflow):
+
+```ts
+await workser.connect.safeRun(
+  'GMAIL_SEND_EMAIL',
+  { to: order.email, subject: `Order ${order.id}`, body: 'Thanks for your order.' },
+  { idempotencyKey: `receipt-${order.id}` },
+);
+```
+
+How to translate: each `{{body.x}}` placeholder becomes the value you were
+passing as `x`; `toolName` becomes the first argument; check the argument names
+with `workser.connect.tools('gmail')` because the node's field names are not
+always the action's. Catch `WorkserError` with `code: 'forbidden'` and show its
+message — it tells the customer the project owner must connect the account.
+
+Keep it a workflow when it needs more than one action with conditions or
+loops, an inbound trigger (webhook, app event, email), a schedule, an approval
+step, an AI-agent step, or work that must outlive the request.
+
 Requires `composio:read` / `composio:execute` / `composio:manage`.

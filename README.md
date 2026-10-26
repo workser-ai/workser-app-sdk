@@ -84,6 +84,12 @@ Workser — because the person reading your error page cannot.
 upstream error. Both take `idempotencyKey`, which is how an automatic retry
 stops sending the same email twice.
 
+One action in a connected app is a function call, not a workflow. Reserve
+`workser.workflows` for work that outlives the request, multi-step flows with
+conditions or loops, inbound triggers, schedules and approvals. To move an
+existing one-action workflow into code, see "Moving a one-action workflow to
+code" in `skills/workser-sdk/reference/connect.md`.
+
 ## Security
 
 This SDK is used by AI agents, so anything it returns can end up in a model's

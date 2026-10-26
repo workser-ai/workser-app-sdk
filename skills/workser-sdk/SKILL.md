@@ -95,7 +95,9 @@ await workser.request('/v1/projects/…/something-new');  // any Core API route
 - Needs to happen **to the app** — provision the database, set an env var, deploy,
   read logs → the `workser` CLI skill.
 - Needs to keep running **after you finish** → `workser.workflows`, or
-  `workser workflow create` from the CLI.
+  `workser workflow create` from the CLI. A single action in a connected app
+  (one email, one Sheets row, one Slack post) is NOT this: call
+  `workser.connect.safeRun` directly.
 
 A common mistake is using the CLI to fetch data the app should be fetching itself:
 `workser db query` is for you to inspect the database while building, not for the app
