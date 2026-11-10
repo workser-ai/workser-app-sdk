@@ -37,12 +37,15 @@ big file never occupies a request slot or a timeout budget:
 
 ```ts
 // server: mint the URL
-const { url, key } = await workser.storage.presignedUploadUrl({
+const { url, key, content_type, publicUrl } = await workser.storage.presignedUploadUrl({
   filename: file.name,
   folder: 'invoices',
   contentType: file.type,
 });
-// browser: PUT the bytes directly to `url`, then tell your server about `key`
+// browser: PUT the bytes directly to `url` with the SAME Content-Type the link was signed
+// for (the answer's `content_type`), then tell your server about `key`:
+//   await fetch(url, { method: 'PUT', headers: { 'Content-Type': content_type }, body: file });
+// A different Content-Type is refused by storage (403). The file's public address is `publicUrl`.
 ```
 
 **Small files only — direct upload.** Base64, without a `data:` prefix:
